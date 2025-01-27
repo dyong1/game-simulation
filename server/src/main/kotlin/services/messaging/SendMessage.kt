@@ -1,17 +1,44 @@
 package services.messaging
 
-import models.Message
-import models.MessageChannel
-import models.MessageContent
-import models.MessageQueue
+import models.*
 import throwables.TypedThrowable
 
 class SendMessage(
     private val messageQueueRepo: MessageQueueRepository
 ) {
-    fun command(sender: MessageChannel, receiver: MessageChannel, content: MessageContent) {
-        if (sender.type != receiver.type) {
-            throw MessageChannelTypesMismatch("sender and receiver both need the same message channel")
+    fun command(
+        type: MessageChannelType,
+        content: String,
+        senderId: Long,
+        receiverId: Long?
+    ) {
+        val (sender, receiver) = when (type) {
+            MessageChannelType.PUBLIC_NEAR -> {
+                Pair(
+                    MessageChannel(
+                        type,
+                        senderId,
+                    ), MessageChannel(
+                        type,
+                        0L,
+                    )
+                )
+            }
+
+            MessageChannelType.WHISPER -> {
+                if (receiverId == null) {
+                    throw TypedThrowable("MISSING_RECEIVER_ID", "missing receiver id")
+                }
+                Pair(
+                    MessageChannel(
+                        type,
+                        senderId,
+                    ), MessageChannel(
+                        type,
+                        receiverId,
+                    )
+                )
+            }
         }
 
         val senderQueue = this.findMessageQueue(sender) ?: throw QueueNotFound("sender queue not found")
@@ -19,14 +46,14 @@ class SendMessage(
 
         senderQueue.push(
             Message(
-                content = content,
+                content = MessageContent(content),
                 from = null,
                 to = receiver,
             )
         )
         receiverQueue.push(
             Message(
-                content = content,
+                content = MessageContent(content),
                 from = sender,
                 to = null
             )
