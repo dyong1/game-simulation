@@ -1,5 +1,8 @@
 package com.dyong.network
 
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -16,13 +19,16 @@ class Connection {
         this.writer = OutputStreamWriter(socket.getOutputStream())
         this.reader = BufferedReader(InputStreamReader(socket.getInputStream()))
     }
+
     fun readMessage(): String? {
         return this.reader.readLine()
     }
+
     fun sendMessage(message: String) {
         this.writer.write(message)
         this.writer.flush()
     }
+
     fun isConnected(): Boolean {
         return socket.isConnected
     }
