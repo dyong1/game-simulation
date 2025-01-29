@@ -1,27 +1,20 @@
 package com.dyong.network
 
-import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.io.Writer
+import java.io.IOException
 import java.net.Socket
 
-class Connection {
+class Connection(
     private var socket: Socket
-    private var writer: Writer
-    private var reader: BufferedReader
-
-    constructor(socket: Socket) {
-        this.socket = socket
-        this.writer = OutputStreamWriter(socket.getOutputStream())
-        this.reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-    }
+) {
+    private var writer = socket.getOutputStream().bufferedWriter()
+    private var reader = socket.getInputStream().bufferedReader()
 
     fun readMessage(): String? {
-        return this.reader.readLine()
+        return try {
+            this.reader.readLine()
+        } catch (e: IOException) {
+            null
+        }
     }
 
     fun sendMessage(message: String) {
@@ -29,7 +22,7 @@ class Connection {
         this.writer.flush()
     }
 
-    fun isConnected(): Boolean {
-        return socket.isConnected
+    fun close() {
+        socket.close()
     }
 }
