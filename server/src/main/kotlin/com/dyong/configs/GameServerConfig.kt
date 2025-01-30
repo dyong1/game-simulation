@@ -1,9 +1,6 @@
 package com.dyong.configs
 
-import com.dyong.game.ClientMessageHandler
-import com.dyong.game.ClientPool
-import com.dyong.game.GameServer
-import com.dyong.game.GameState
+import com.dyong.game.*
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -19,11 +16,15 @@ class GameServerConfig {
         clientMessageHandler: ClientMessageHandler,
         clientPool: ClientPool,
         gameState: GameState,
+        stateChangeBroadcaster: StateChangeBroadcaster,
+        logoutUser: LogoutUser
     ): GameServer {
         val server = GameServer(
             clientMessageHandler,
             clientPool,
             gameState,
+            stateChangeBroadcaster,
+            logoutUser,
         )
         server.start(port)
         return server

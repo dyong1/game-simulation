@@ -5,19 +5,23 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.springframework.stereotype.Component
 import java.net.ServerSocket
 import java.net.Socket
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+
+private val json = Json { encodeDefaults = true }
 
 @Component
 class GameServer(
     private val clientMessageHandler: ClientMessageHandler,
     private val clientPool: ClientPool,
     private val gameState: GameState,
+    private val stateChangeBroadcaster: StateChangeBroadcaster,
+    private val logoutUser: LogoutUser,
 ) {
     private val incomingMessages = Channel<Pair<UserClient, String>>()
 
@@ -39,43 +43,60 @@ class GameServer(
     }
 
     private fun loadGameState() {
-        //WIP:
+        gameState.levels.add(
+            Level(
+                id = 11L,
+                droppedItems = mutableListOf(
+                    DroppedItem(
+                        itemId = 1L,
+                        position = Position2D(13L, 33L),
+                    )
+                )
+            )
+        )
+        gameState.monsters.add(
+            Monster(
+                id = 2L,
+                experience = 10,
+                life = 10,
+                position = Position2D(22, 10),
+                droppables = mutableListOf(DroppableItem(itemId = 1L))
+            )
+        )
     }
 
     private suspend fun handleNewClient(clientSocket: Socket) {
         val conn = Connection(clientSocket)
 
-        val userId = handshake(conn) ?: return
+        val userId = loginUser(conn) ?: return
 
-        val sessionToken = UUID.randomUUID().toString()
         val client = UserClient(userId, conn)
         clientPool.add(userId, client)
-        gameState.addPlayer(Player(
+        val playerLoggedIn = Player(
+            client,
             userId = userId,
-            position = Position2D(64L,123L),
+            position = Position2D(64L, 123L),
             currentLevelId = 11L,
             experience = 13L
-        ))
-        client.send(
-            Json.encodeToString(
-                ServerNetMessage(
-                    true, NetMessageConnectedData(
-                        ServerNetMessageType.CONNECTED, sessionToken
-                    )
-                )
-            )
         )
 
+        gameState.players.add(playerLoggedIn)
+        stateChangeBroadcaster.notifyLevel(11L)
+        client.send(json.encodeToString(NetMessagePlayerLogin.fromPlayer(playerLoggedIn)))
+
         try {
-            client.receiveMessages { m -> incomingMessages.send(client to m) }
+            client.receiveMessages(
+                onMessage = { m -> incomingMessages.send(client to m) },
+                onLogout = { logoutUser.execute(userId) }
+            )
         } finally {
-            val player = gameState.findPlayerByUserId(userId)
-            gameState.removePlayer(player)
+            val player = gameState.players.find { it.userId == userId }
+            gameState.players.remove(player)
             clientPool.remove(userId)
         }
     }
 
-    private fun handshake(conn: Connection): Long? {
+    private fun loginUser(conn: Connection): Long? {
         val raw = conn.readMessage() ?: return null
         val m = ClientNetMessageParser().parse(raw, NetMessageUserHandshake::class)
         return m.userId
@@ -87,6 +108,11 @@ class GameServer(
         }
     }
 }
+
+data class DroppedItem(
+    val itemId: Long,
+    val position: Position2D,
+)
 
 @Component
 class ClientPool {
@@ -109,13 +135,14 @@ class UserClient(
         connection.sendMessage(message)
     }
 
-    suspend fun receiveMessages(onMessage: suspend (String) -> Unit) {
+    suspend fun receiveMessages(onMessage: suspend (String) -> Unit, onLogout: suspend () -> Unit) {
         try {
             while (true) {
                 val m = connection.readMessage() ?: break
                 onMessage(m)
             }
         } finally {
+            onLogout()
             connection.close()
         }
     }
@@ -127,7 +154,6 @@ class ClientMessageHandler(
     private val parser: ClientNetMessageParser,
     private val playerMove: PlayerMove,
     private val playerAttack: PlayerAttack,
-    private val sessionValidater: SessionValidater,
 ) {
     fun handle(message: Pair<UserClient, String>) {
         val client = message.first
@@ -136,14 +162,8 @@ class ClientMessageHandler(
         )
         val raw = message.second
 
-        val session = parser.parse(raw, SessionWrapper::class)
-        val result = sessionValidater.validate(session.sessionToken)
-        if (!result.ok) {
-            return
-        }
-
         when {
-            raw.startsWith(NetMessagePlayerMove.type()) -> playerMove.execute(
+            raw.startsWith(NetMessagePlayerMove.type().toString()) -> playerMove.execute(
                 ctx, parser.parse(
                     raw, NetMessagePlayerMove::class
                 ).let {
@@ -154,7 +174,7 @@ class ClientMessageHandler(
                 }
             )
 
-            raw.startsWith(NetMessagePlayerAttack.type()) -> playerAttack.execute(
+            raw.startsWith(NetMessagePlayerAttack.type().toString()) -> playerAttack.execute(
                 ctx, parser.parse(
                     raw, NetMessagePlayerAttack::class
                 ).let {
@@ -169,19 +189,9 @@ class ClientMessageHandler(
 }
 
 @Component
-class SessionValidater {
-    data class ValidateResult(val ok: Boolean)
-
-    fun validate(sessionToken: String): ValidateResult {
-        return ValidateResult(true)
-    }
-
-}
-
-@Component
 class PlayerMove(
-    val gameState: GameState,
-    val stateChangeBroadcaster: StateChangeBroadcaster,
+    private val gameState: GameState,
+    private val stateChangeBroadcaster: StateChangeBroadcaster,
 ) {
     data class Params(
         val deltaX: Long,
@@ -189,7 +199,7 @@ class PlayerMove(
     )
 
     fun execute(ctx: UseCaseContext, params: Params) {
-        val player = gameState.findPlayerByUserId(ctx.client.userId) ?: return
+        val player = gameState.players.find { it.userId == ctx.client.userId } ?: return
         player.position.x += params.deltaX
         player.position.y += params.deltaY
         stateChangeBroadcaster.notifyLevel(player.currentLevelId)
@@ -201,66 +211,58 @@ class StateChangeBroadcaster(
     private val gameState: GameState
 ) {
     fun notifyLevel(levelId: Long) {
-        //WIP:
+        val players = gameState.players.filter { it.currentLevelId == levelId }
+        val serializableState = NetMessageUpdateLevelState.fromGameState(gameState)
+        for (p in players) {
+            p.client.send(json.encodeToString(serializableState))
+        }
     }
 }
 
 @Component
 class GameState {
-    private val players = mutableListOf<Player>()
-    private val monsters = mutableListOf<Monster>()
-
-    fun findPlayerByUserId(userId: Long): Player? {
-        return players.find { p -> p.userId == userId }
-    }
-
-    fun findLevelById(currentLevelId: Long): Level? {
-        return null
-    }
-
-    fun findMonster(currentLevelId: Long): Monster? {
-        return null
-    }
-
-    fun removeMonster(monster: Monster) {
-        monsters.remove(monster)
-    }
-
-    fun removePlayer(player: Player?) {
-        players.remove(player)
-    }
-
-    fun addPlayer(player: Player) {
-        players.add(player)
-    }
+    val players = mutableListOf<Player>()
+    val monsters = mutableListOf<Monster>()
+    val levels = mutableListOf<Level>()
 }
 
 class Monster(
+    val id: Long,
     var life: Long,
     val experience: Long,
-    val droppables: List<DroppableObject>,
+    val droppables: List<DroppableItem>,
     val position: Position2D
 ) {
-    fun dropItem(): DroppableObject? {
-        return droppables.shuffled().getOrNull(0)
+    fun dropItem(): DroppedItem? {
+        return droppables.shuffled().getOrNull(0)?.let {
+            DroppedItem(
+                itemId = it.itemId,
+                position = position,
+            )
+        }
     }
 }
 
-data class DroppableObject(val id: Long, val position: Position2D)
+@Serializable
+data class DroppableItem(
+    val itemId: Long
+)
 
 data class Level(
     val id: Long,
-    val droppedItems: MutableList<DroppableObject>
+    val droppedItems: MutableList<DroppedItem>
 ) {
 }
 
 class Player(
+    val client: UserClient,
     val userId: Long,
     var position: Position2D,
     var currentLevelId: Long,
     var experience: Long
 )
 
+@Serializable
 data class Position2D(
     var x: Long,
     var y: Long
@@ -277,11 +279,11 @@ class PlayerAttack(
     )
 
     fun execute(ctx: UseCaseContext, params: Params) {
-        val player = gameState.findPlayerByUserId(ctx.client.userId) ?: return
-        val level = gameState.findLevelById(player.currentLevelId) ?: return
-        val monster = gameState.findMonster(params.targetId) ?: return
+        val player = gameState.players.find { it.userId == ctx.client.userId } ?: return
+        val level = gameState.levels.find { it.id == player.currentLevelId } ?: return
+        val monster = gameState.monsters.find { it.id == params.targetId } ?: return
         monster.life -= params.damage
-        if (monster.life < 0) {
+        if (monster.life <= 0) {
             player.experience += monster.experience
             val item = monster.dropItem()
             if (item != null) {
@@ -289,8 +291,20 @@ class PlayerAttack(
                 item.position.y = monster.position.y
                 level.droppedItems.add(item)
             }
-            gameState.removeMonster(monster)
+            gameState.monsters.remove(monster)
         }
+        stateChangeBroadcaster.notifyLevel(player.currentLevelId)
+    }
+}
+
+@Component
+class LogoutUser(
+    private val gameState: GameState,
+    private val stateChangeBroadcaster: StateChangeBroadcaster,
+) {
+    fun execute(userId: Long) {
+        val player = gameState.players.find { it.userId == userId } ?: return
+        gameState.players.remove(player)
         stateChangeBroadcaster.notifyLevel(player.currentLevelId)
     }
 }

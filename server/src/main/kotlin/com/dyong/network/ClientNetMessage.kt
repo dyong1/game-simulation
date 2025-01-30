@@ -7,41 +7,46 @@ import kotlinx.serialization.serializer
 import org.springframework.stereotype.Component
 import kotlin.reflect.KClass
 
+enum class ClientNetMessageType {
+    LOGIN_PLAYER,
+    PLAYER_MOVE,
+    PLAYER_ATTACK,
+}
+
 @Serializable
 data class NetMessageUserHandshake(
     val userId: Long
-)
+) {
+    companion object {
+        fun type(): ClientNetMessageType {
+            return ClientNetMessageType.LOGIN_PLAYER
+        }
+    }
+}
 
 @Serializable
 data class NetMessagePlayerMove(
-    val sessionToken: String,
     val deltaX: Long,
     val deltaY: Long
 ) {
     companion object {
-        fun type(): String {
-            return "PLAYER_MOVE"
+        fun type(): ClientNetMessageType {
+            return ClientNetMessageType.PLAYER_MOVE
         }
     }
 }
 
 @Serializable
 data class NetMessagePlayerAttack(
-    val sessionToken: String,
     val targetId: Long,
     val damage: Long
 ) {
     companion object {
-        fun type(): String {
-            return "PLAYER_ATTACK"
+        fun type(): ClientNetMessageType {
+            return ClientNetMessageType.PLAYER_ATTACK
         }
     }
 }
-
-@Serializable
-data class SessionWrapper(
-    val sessionToken: String,
-)
 
 @Component
 class ClientNetMessageParser {
