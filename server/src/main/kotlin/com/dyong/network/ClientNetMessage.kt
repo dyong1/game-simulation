@@ -14,6 +14,7 @@ data class NetMessageUserHandshake(
 
 @Serializable
 data class NetMessagePlayerMove(
+    val sessionToken: String,
     val deltaX: Long,
     val deltaY: Long
 ) {
@@ -26,6 +27,7 @@ data class NetMessagePlayerMove(
 
 @Serializable
 data class NetMessagePlayerAttack(
+    val sessionToken: String,
     val targetId: Long,
     val damage: Long
 ) {
@@ -37,22 +39,8 @@ data class NetMessagePlayerAttack(
 }
 
 @Serializable
-data class NetMessagePlayerUseSkill(
-    val skillId: Long,
-    val targetId: Long?
-) {
-    companion object {
-        fun type(): String {
-            return "PLAYER_USE_SKILL"
-        }
-    }
-}
-
-@Serializable
-data class ClientNetMessage<Body>(
+data class SessionWrapper(
     val sessionToken: String,
-    val type: String,
-    val body: Body
 )
 
 @Component
