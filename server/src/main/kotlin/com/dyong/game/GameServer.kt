@@ -6,6 +6,7 @@ import Level
 import Monster
 import Player
 import Position2D
+import com.dyong.domain.LoginUser
 import com.dyong.domain.LogoutUser
 import com.dyong.netrouting.ClientMessageHandler
 import com.dyong.network.ClientNetMessageParser
@@ -28,6 +29,7 @@ class GameServer(
     private val clientPool: ClientPool,
     private val gameState: GameState,
     private val stateChangeBroadcaster: StateChangeBroadcaster,
+    private val loginUser: LoginUser,
     private val logoutUser: LogoutUser,
 ) {
     private val incomingMessages = Channel<Pair<UserClient, String>>()
@@ -75,7 +77,7 @@ class GameServer(
     private suspend fun handleNewClient(clientSocket: Socket) {
         val conn = NetConnection(clientSocket)
 
-        val userId = loginUser(conn) ?: return
+        val userId = loginUser.execute(conn) ?: return
 
         val client = UserClient(userId, conn)
         clientPool.add(userId, client)
@@ -103,11 +105,7 @@ class GameServer(
         }
     }
 
-    private fun loginUser(conn: NetConnection): Long? {
-        val raw = conn.readMessage() ?: return null
-        val m = ClientNetMessageParser().parse(raw, NetMessageUserLogin::class)
-        return m.userId
-    }
+
 
     private suspend fun handleIncomingMessages() {
         for (m in incomingMessages) {
