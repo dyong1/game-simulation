@@ -1,8 +1,6 @@
 package com.dyong.game
 
-import Level
-import Monster
-import Player
+import com.dyong.domain.*
 import com.dyong.network.NetMessageUpdateLevelState
 import json
 import kotlinx.serialization.encodeToString

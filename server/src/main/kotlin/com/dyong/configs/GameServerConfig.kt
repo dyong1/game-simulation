@@ -1,5 +1,6 @@
 package com.dyong.configs
 
+import com.dyong.domain.LoginUser
 import com.dyong.domain.LogoutUser
 import com.dyong.game.*
 import com.dyong.netrouting.ClientMessageHandler
@@ -19,6 +20,7 @@ class GameServerConfig {
         clientPool: ClientPool,
         gameState: GameState,
         stateChangeBroadcaster: StateChangeBroadcaster,
+        loginUser: LoginUser,
         logoutUser: LogoutUser
     ): GameServer {
         val server = GameServer(
@@ -26,6 +28,7 @@ class GameServerConfig {
             clientPool,
             gameState,
             stateChangeBroadcaster,
+            loginUser,
             logoutUser,
         )
         server.start(port)

@@ -1,5 +1,9 @@
-import com.dyong.game.UserClient
+package com.dyong.domain
 
+import com.dyong.game.UserClient
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class Position2D(
     var x: Long,
     var y: Long

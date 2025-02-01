@@ -1,8 +1,7 @@
 package com.dyong.network
 
+import com.dyong.domain.*
 import com.dyong.game.GameState
-import com.dyong.game.Player
-import com.dyong.game.Position2D
 import kotlinx.serialization.Serializable
 
 @Serializable

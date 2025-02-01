@@ -1,7 +1,6 @@
 package com.dyong.netrouting
 
-import com.dyong.domain.PlayerAttack
-import com.dyong.domain.PlayerMove
+import com.dyong.domain.*
 import com.dyong.game.UserClient
 import com.dyong.network.ClientNetMessageParser
 import com.dyong.network.NetMessagePlayerAttack

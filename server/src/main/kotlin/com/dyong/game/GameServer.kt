@@ -1,11 +1,6 @@
 package com.dyong.game
 
-import DroppableItem
-import DroppedItem
-import Level
-import Monster
-import Player
-import Position2D
+import com.dyong.domain.*
 import com.dyong.domain.LoginUser
 import com.dyong.domain.LogoutUser
 import com.dyong.netrouting.ClientMessageHandler
