@@ -14,7 +14,7 @@ enum class ClientNetMessageType {
 }
 
 @Serializable
-data class NetMessageUserHandshake(
+data class NetMessageUserLogin(
     val userId: Long
 ) {
     companion object {

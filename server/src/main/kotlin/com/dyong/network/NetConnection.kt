@@ -3,7 +3,7 @@ package com.dyong.network
 import java.io.IOException
 import java.net.Socket
 
-class Connection(
+class NetConnection(
     private var socket: Socket
 ) {
     private var writer = socket.getOutputStream().bufferedWriter()
