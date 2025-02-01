@@ -1,6 +1,5 @@
-package com.dyong.game
+package com.dyong.network
 
-import com.dyong.network.NetConnection
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 

@@ -2,10 +2,7 @@ package com.dyong.domain
 
 import com.dyong.game.GameState
 import com.dyong.game.StateChangeBroadcaster
-import com.dyong.game.UserClient
-import com.dyong.network.ClientNetMessageParser
-import com.dyong.network.NetConnection
-import com.dyong.network.NetMessageUserLogin
+import com.dyong.network.UserClient
 import org.springframework.stereotype.Component
 
 @Component

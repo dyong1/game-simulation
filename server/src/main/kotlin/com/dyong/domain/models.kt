@@ -1,6 +1,6 @@
 package com.dyong.domain
 
-import com.dyong.game.UserClient
+import com.dyong.network.UserClient
 import kotlinx.serialization.Serializable
 
 @Serializable
